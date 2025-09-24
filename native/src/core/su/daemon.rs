@@ -231,6 +231,21 @@ fn build_su_info(&self, uid: i32) -> Arc<SuInfo> {
         let mut access = RootSettings::default();
         self.get_root_settings(eval_uid, &mut access)?;
 
+        if uid == AID_SHELL {
+            return Arc::new(SuInfo {
+                uid,
+                eval_uid,
+                mgr_pkg: String::new(),
+                mgr_uid: -1,
+                cfg,
+                access: Mutex::new(AccessInfo::new(RootSettings {
+                    policy: SuPolicy::Allow,
+                    log: access.log,
+                    notify: false,
+                })),
+            });
+        }
+
         // We need to talk to the manager, get the app info
         let (mgr_uid, mgr_pkg) =
             if access.policy == SuPolicy::Query || access.log || access.notify {
@@ -257,9 +272,7 @@ fn build_su_info(&self, uid: i32) -> Arc<SuInfo> {
                 }
             }
             RootAccess::AppsOnly => {
-                // 修改这里：允许adb shell使用su
                 if uid != AID_SHELL {
-                    // 只对非adb shell应用AppsOnly限制
                     warn!("Root access is disabled for non-ADB!");
                     return Arc::new(SuInfo::deny(uid));
                 }
