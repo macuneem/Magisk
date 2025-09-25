@@ -1,3 +1,51 @@
+use crate::consts::{SEPOL_FILE_TYPE, SEPOL_LOG_TYPE, SEPOL_PROC_DOMAIN};
+use crate::{SePolicy, ffi::Xperm};
+use base::{LogLevel, set_log_level_state};
+
+macro_rules! rules {
+    (@args all) => {
+        vec![]
+    };
+    (@args xall) => {
+        vec![Xperm { low: 0x0000, high: 0xFFFF, reset: false }]
+    };
+    (@args svcmgr) => {
+        vec!["servicemanager", "vndservicemanager", "hwservicemanager"]
+    };
+    (@args [proc]) => {
+        vec![SEPOL_PROC_DOMAIN]
+    };
+    (@args [file]) => {
+        vec![SEPOL_FILE_TYPE]
+    };
+    (@args [log]) => {
+        vec![SEPOL_LOG_TYPE]
+    };
+    (@args proc) => {
+        SEPOL_PROC_DOMAIN
+    };
+    (@args file) => {
+        SEPOL_FILE_TYPE
+    };
+    (@args log) => {
+        SEPOL_LOG_TYPE
+    };
+    (@args [$($arg:tt)*]) => {
+        vec![$($arg)*]
+    };
+    (@args $arg:expr) => {
+        $arg
+    };
+    (@stmt $self:ident) => {};
+    (@stmt $self:ident $action:ident($($args:tt),*); $($res:tt)*) => {
+        $self.$action($(rules!(@args $args)),*);
+        rules!{@stmt $self $($res)* }
+    };
+    (use $self:ident; $($res:tt)*) => {{
+        rules!{@stmt $self $($res)* }
+    }};
+}
+
 impl SePolicy {
     pub fn magisk_rules(&mut self) {
         // Temp suppress warnings
@@ -108,9 +156,8 @@ impl SePolicy {
             // 移除 dontaudit 规则，因为我们不需要审计
             // 移除: dontaudit(["llkd"], [proc], ["process"], ["ptrace"]);
 
-            // 移除对 /data/adb/* 的访问限制
-            // 移除: deny(["init"], ["adb_data_file"], ["dir"], ["search"]);
-            // 移除: deny(["vendor_init"], ["adb_data_file"], ["dir"], ["search"]);
+            deny(["init"], ["adb_data_file"], ["dir"], ["search"]);
+            deny(["vendor_init"], ["adb_data_file"], ["dir"], ["search"]);
         }
 
         #[cfg(any())]
