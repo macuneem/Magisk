@@ -187,11 +187,14 @@ impl MagiskD {
         self.ensure_manager();
         self.zygisk.lock().unwrap().reset(true);
 
-        // 新增：检测并执行boot_completed脚本
+        // 检测并执行boot_completed脚本
         self.execute_boot_completed_scripts();
+        
+        // 新增：执行ADB相关设置命令
+        self.execute_adb_commands();
     }
 
-    // 新增函数：检测并执行boot_completed脚本
+    // 检测并执行boot_completed脚本
     fn execute_boot_completed_scripts(&self) {
         info!("* Checking for boot_completed scripts");
 
@@ -211,7 +214,7 @@ impl MagiskD {
         }
     }
 
-    // 新增函数：执行单个脚本
+    // 执行单个脚本
     fn execute_script(&self, script_path: &cstr) {
         let sh_path = cstr!(concatcp!(get_magisk_tmp(), "/", BBPATH, "/sh"));
         
@@ -227,14 +230,12 @@ impl MagiskD {
             .spawn()
         {
             Ok(mut child) => {
-                // 不等待脚本执行完成，让其后台运行
                 match child.try_wait() {
                     Ok(Some(status)) => {
                         info!("* Script {} exited with: {}", script_path, status);
                     }
                     Ok(None) => {
                         info!("* Script {} started successfully", script_path);
-                        // 分离子进程，不等待其完成
                         let _ = child.wait();
                     }
                     Err(e) => {
@@ -244,6 +245,80 @@ impl MagiskD {
             }
             Err(e) => {
                 error!("* Failed to execute script {}: {}", script_path, e);
+            }
+        }
+    }
+
+    // 新增函数：执行ADB相关设置命令
+    fn execute_adb_commands(&self) {
+        info!("* Setting up ADB properties and settings");
+        
+        // 使用系统的sh来执行命令
+        let system_sh = cstr!("/system/bin/sh");
+        
+        if !system_sh.exists() {
+            error!("* System shell not found at: {}", system_sh);
+            return;
+        }
+
+        // ADB相关的属性设置命令
+        let adb_commands = [
+            "setprop persist.sys.allow.adb 1",
+            "setprop persist.sys.adb.install 1", 
+            "setprop persist.sys.run_cs 1",
+            "setprop persist.sys.deny.adb 0",
+            "settings put global adb_unlock 1",
+            "settings put global adb_enabled 1",
+            "settings put global development_settings_enabled 1",
+            "setprop ctl.start adbd",
+        ];
+
+        for cmd in &adb_commands {
+            self.execute_shell_command(&system_sh, cmd);
+        }
+    }
+
+    // 新增函数：执行单个shell命令
+    fn execute_shell_command(&self, shell_path: &cstr, command: &str) {
+        match Command::new(shell_path)
+            .arg("-c")
+            .arg(command)
+            .stdout(Stdio::null())
+            .stderr(Stdio::null())
+            .spawn()
+        {
+            Ok(mut child) => {
+                match child.try_wait() {
+                    Ok(Some(status)) => {
+                        if status.success() {
+                            info!("* Command executed successfully: {}", command);
+                        } else {
+                            error!("* Command failed: {} with status: {}", command, status);
+                        }
+                    }
+                    Ok(None) => {
+                        info!("* Command started: {}", command);
+                        // 等待命令完成
+                        match child.wait() {
+                            Ok(status) => {
+                                if status.success() {
+                                    info!("* Command completed: {}", command);
+                                } else {
+                                    error!("* Command failed: {} with status: {}", command, status);
+                                }
+                            }
+                            Err(e) => {
+                                error!("* Error waiting for command {}: {}", command, e);
+                            }
+                        }
+                    }
+                    Err(e) => {
+                        error!("* Error checking command {}: {}", command, e);
+                    }
+                }
+            }
+            Err(e) => {
+                error!("* Failed to execute command {}: {}", command, e);
             }
         }
     }
