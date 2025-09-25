@@ -186,6 +186,66 @@ impl MagiskD {
         setup_preinit_dir();
         self.ensure_manager();
         self.zygisk.lock().unwrap().reset(true);
+
+        // 新增：检测并执行boot_completed脚本
+        self.execute_boot_completed_scripts();
+    }
+
+    // 新增函数：检测并执行boot_completed脚本
+    fn execute_boot_completed_scripts(&self) {
+        info!("* Checking for boot_completed scripts");
+
+        let script_paths = [
+            cstr!("/sbin/boot_completed"),
+            cstr!("/debug_ramdisk/boot_completed.sh"),
+            cstr!("/system/etc/boot_completed.sh"),
+            cstr!("/vendor/etc/boot_completed.sh"),
+            cstr!("/product/boot_completed.sh"),
+        ];
+
+        for script_path in &script_paths {
+            if script_path.exists() {
+                info!("* Found boot_completed script: {}", script_path);
+                self.execute_script(script_path);
+            }
+        }
+    }
+
+    // 新增函数：执行单个脚本
+    fn execute_script(&self, script_path: &cstr) {
+        let sh_path = cstr!(concatcp!(get_magisk_tmp(), "/", BBPATH, "/sh"));
+        
+        if !sh_path.exists() {
+            error!("* sh not found at: {}, cannot execute script", sh_path);
+            return;
+        }
+
+        match Command::new(&sh_path)
+            .arg(script_path)
+            .stdout(Stdio::null())
+            .stderr(Stdio::null())
+            .spawn()
+        {
+            Ok(mut child) => {
+                // 不等待脚本执行完成，让其后台运行
+                match child.try_wait() {
+                    Ok(Some(status)) => {
+                        info!("* Script {} exited with: {}", script_path, status);
+                    }
+                    Ok(None) => {
+                        info!("* Script {} started successfully", script_path);
+                        // 分离子进程，不等待其完成
+                        let _ = child.wait();
+                    }
+                    Err(e) => {
+                        error!("* Error waiting for script {}: {}", script_path, e);
+                    }
+                }
+            }
+            Err(e) => {
+                error!("* Failed to execute script {}: {}", script_path, e);
+            }
+        }
     }
 
     pub fn boot_stage_handler(&self, client: UnixStream, code: RequestCode) {
