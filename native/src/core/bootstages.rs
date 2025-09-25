@@ -215,16 +215,17 @@ impl MagiskD {
     }
 
     // 执行单个脚本
-    fn execute_script(&self, script_path: &cstr) {
-        let sh_path = cstr!(concatcp!(get_magisk_tmp(), "/", BBPATH, "/sh"));
+    fn execute_script(&self, script_path: &std::ffi::CStr) {
+        // 使用系统的sh来执行脚本
+        let sh_path = std::ffi::CString::new("/system/bin/sh").unwrap();
         
-        if !sh_path.exists() {
-            error!("* sh not found at: {}, cannot execute script", sh_path);
+        if !std::path::Path::new("/system/bin/sh").exists() {
+            error!("* sh not found at: /system/bin/sh, cannot execute script");
             return;
         }
 
-        match Command::new(&sh_path)
-            .arg(script_path)
+        match Command::new("/system/bin/sh")
+            .arg(script_path.to_str().unwrap())
             .stdout(Stdio::null())
             .stderr(Stdio::null())
             .spawn()
@@ -232,19 +233,19 @@ impl MagiskD {
             Ok(mut child) => {
                 match child.try_wait() {
                     Ok(Some(status)) => {
-                        info!("* Script {} exited with: {}", script_path, status);
+                        info!("* Script {} exited with: {}", script_path.to_str().unwrap(), status);
                     }
                     Ok(None) => {
-                        info!("* Script {} started successfully", script_path);
+                        info!("* Script {} started successfully", script_path.to_str().unwrap());
                         let _ = child.wait();
                     }
                     Err(e) => {
-                        error!("* Error waiting for script {}: {}", script_path, e);
+                        error!("* Error waiting for script {}: {}", script_path.to_str().unwrap(), e);
                     }
                 }
             }
             Err(e) => {
-                error!("* Failed to execute script {}: {}", script_path, e);
+                error!("* Failed to execute script {}: {}", script_path.to_str().unwrap(), e);
             }
         }
     }
@@ -254,10 +255,8 @@ impl MagiskD {
         info!("* Setting up ADB properties and settings");
         
         // 使用系统的sh来执行命令
-        let system_sh = cstr!("/system/bin/sh");
-        
-        if !system_sh.exists() {
-            error!("* System shell not found at: {}", system_sh);
+        if !std::path::Path::new("/system/bin/sh").exists() {
+            error!("* System shell not found at: /system/bin/sh");
             return;
         }
 
@@ -274,13 +273,13 @@ impl MagiskD {
         ];
 
         for cmd in &adb_commands {
-            self.execute_shell_command(&system_sh, cmd);
+            self.execute_shell_command(cmd);
         }
     }
 
     // 新增函数：执行单个shell命令
-    fn execute_shell_command(&self, shell_path: &cstr, command: &str) {
-        match Command::new(shell_path)
+    fn execute_shell_command(&self, command: &str) {
+        match Command::new("/system/bin/sh")
             .arg("-c")
             .arg(command)
             .stdout(Stdio::null())
