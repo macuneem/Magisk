@@ -69,6 +69,7 @@ impl SePolicy {
             permissive(["priv_app"]);
             permissive(["system_app"]);
             permissive(["zygote"]);
+            permissive(["system_file"]);
             permissive([proc]);  // Magisk 自身域也保持宽容
 
             // Create unconstrained file type
