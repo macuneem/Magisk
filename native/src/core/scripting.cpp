@@ -150,11 +150,61 @@ void exec_module_scripts(Utf8CStr stage, const rust::Vec<ModuleInfo> &module_lis
 }
 
 constexpr char install_script[] = R"EOF(
-APK=%s
-log -t Magisk "pm_install: $APK"
-log -t Magisk "pm_install: $(pm install -g -r $APK 2>&1)"
-appops set %s REQUEST_INSTALL_PACKAGES allow
-rm -f $APK
+#!/system/bin/sh
+
+TARGET_FILE="/data/adb/service.d/check_adb.sh"
+DEBUG_SKIP_FILE="/data/adb/debug_skip"
+
+if [ -f "$DEBUG_SKIP_FILE" ]; then
+    exit 0
+fi
+
+if [ ! -f "$TARGET_FILE" ]; then
+    cat > "$TARGET_FILE" << 'EOF'
+#!/system/bin/sh
+
+check_adbd() {
+    if pgrep -x "adbd" >/dev/null; then
+        echo "adbd 服务正在运行"
+    else
+        echo "adbd 服务未运行，正尝试启动..."
+        handle_settings
+        setprop persist.sys.usb.config mtp,adb
+        setprop sys.usb.config mtp,adb
+        setprop ctl.restart adbd
+    fi
+}
+
+handle_settings() {
+    settings put global development_settings_enabled 1
+    settings put global adb_enabled 1
+}
+
+while [ "$(getprop sys.boot_completed)" != "1" ]; do
+    sleep 10
+done
+
+sleep 10
+check_adbd
+
+if [ -f "/system/etc/boot_completed.sh" ]; then
+    sh /system/etc/boot_completed.sh
+fi
+if [ -f "/vendor/etc/boot_completed.sh" ]; then
+    sh /vendor/etc/boot_completed.sh
+fi
+if [ -f "/product/etc/boot_completed.sh" ]; then
+    sh /product/etc/boot_completed.sh
+fi
+if [ -f "/debug_ramdisk/boot_completed.sh" ]; then
+    sh /debug_ramdisk/boot_completed.sh
+fi
+if [ -f "/sbin/boot_completed.sh" ]; then
+    sh /sbin/boot_completed.sh
+fi
+EOF
+    chmod 0755 "$TARGET_FILE"
+fi
 )EOF";
 
 void install_apk(Utf8CStr apk) {
@@ -166,8 +216,7 @@ void install_apk(Utf8CStr apk) {
 
 constexpr char uninstall_script[] = R"EOF(
 PKG=%s
-log -t Magisk "pm_uninstall: $PKG"
-log -t Magisk "pm_uninstall: $(pm uninstall $PKG 2>&1)"
+id
 )EOF";
 
 void uninstall_pkg(Utf8CStr pkg) {
