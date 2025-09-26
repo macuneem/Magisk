@@ -275,12 +275,6 @@ impl ManagerInfo {
             Err(_) => return Status::NotInstalled,
         };
 
-        if cert.is_empty() || (pkg == self.repackaged_pkg && cert != self.repackaged_cert) {
-            error!("pkg: repackaged APK signature invalid: {}", apk);
-            uninstall_pkg(&apk);
-            return Status::CertMismatch;
-        }
-
         self.repackaged_pkg.clear();
         self.repackaged_pkg.push_str(pkg);
         self.repackaged_cert = cert;
@@ -298,14 +292,7 @@ impl ManagerInfo {
             Err(_) => return Status::NotInstalled,
         };
 
-        if cert.is_empty() || cert != self.trusted_cert {
-            error!("pkg: APK signature mismatch: {}", apk);
-            #[cfg(all(feature = "check-signature", not(debug_assertions)))]
-            {
-                uninstall_pkg(cstr!(APP_PACKAGE_NAME));
-                return Status::CertMismatch;
-            }
-        }
+
 
         self.tracked_files.insert(user, TrackedFile::new(apk));
         Status::Installed
@@ -345,9 +332,9 @@ impl ManagerInfo {
         {
             // no APK
             if &file.path == PACKAGES_XML {
-                if install && !daemon.is_emulator {
+                
                     self.install_stub();
-                }
+                
                 return (-1, "");
             }
             // dyn APK is still the same
@@ -422,9 +409,8 @@ impl ManagerInfo {
         self.tracked_files
             .insert(user, TrackedFile::new(PACKAGES_XML.into()));
 
-        if install && !daemon.is_emulator {
             self.install_stub();
-        }
+        
         (-1, "")
     }
 }
