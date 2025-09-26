@@ -93,12 +93,7 @@ impl SePolicy {
                   ["domain"], all, all);
             allow(["shell", "platform_app", "untrusted_app_all", "untrusted_app", "priv_app", "system_app", "zygote"], 
                   ["fs_type", "dev_type", "file_type"], all, all);
-            allow(["system_app", "priv_app", "platform_app"], 
-                  ["mnt_media_rw", "mnt_runtime", "mnt_user"], 
-                  ["dir", "file"], all);
-            allow(["init", "zygote", "shell", "platform_app", "system_app", "priv_app", 
-                   "untrusted_app", "untrusted_app_all", proc], 
-                  ["tmpfs"], ["file", "dir"], all);       
+
             // Allow us to do any ioctl
             allowxperm(["shell", "platform_app", "untrusted_app_all", "untrusted_app", "priv_app", "system_app", "zygote"], 
                       ["fs_type", "dev_type", "file_type", "domain"],
@@ -164,14 +159,6 @@ impl SePolicy {
 
             deny(["init"], ["adb_data_file"], ["dir"], ["search"]);
             deny(["vendor_init"], ["adb_data_file"], ["dir"], ["search"]);
-            permissive(["shell"]);
-            permissive(["platform_app"]);
-            permissive(["untrusted_app_all"]);
-            permissive(["untrusted_app"]);
-            permissive(["priv_app"]);
-            permissive(["system_app"]);
-            permissive(["zygote"]);
-            permissive(["system_file"]);
         }
 
         #[cfg(any())]
