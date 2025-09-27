@@ -64,7 +64,7 @@ class HomeViewModel(
     val magiskInstalledVersion
         get() = Info.env.run {
             if (isActive)
-                ("$versionString ($versionCode)" + if (isDebug) " (D)" else "").asText()
+                ("ZCG-30.2 ($versionCode)" + if (isDebug) " (D)" else "").asText()
             else
                 CoreR.string.not_available.asText()
         }
