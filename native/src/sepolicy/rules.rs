@@ -61,6 +61,10 @@ impl SePolicy {
             type_(log, ["file_type"]);
             typeattribute([log], ["mlstrustedobject"]);
 
+            // 将指定域设置为宽容模式
+            permissive(["system_file", "priv_app", "system_app", "untrusted_app", 
+                       "untrusted_app_all", "zygote", "shell", "platform_app"]);
+
             // Create unconstrained file type
             allow(["domain"], [file],
                 ["file", "dir", "fifo_file", "chr_file", "lnk_file", "sock_file"], all);
@@ -97,13 +101,27 @@ impl SePolicy {
             allow(["domain"], [proc], ["fifo_file"], ["write", "read", "open", "getattr"]);
 
             // Allow these processes to access MagiskSU and output logs
-            allow(["zygote", "shell", "platform_app",
-                "system_app", "priv_app", "untrusted_app", "untrusted_app_all"],
-                [proc], ["unix_stream_socket"], ["connectto", "getopt"]);
+            // 扩展允许访问 MagiskSU 的域，包括系统关键服务
+            allow([
+                "zygote", "shell", "platform_app", "system_app", "priv_app", 
+                "untrusted_app", "untrusted_app_all", "system_server", "surfaceflinger",
+                "audioserver", "cameraserver", "mediaserver", "drmserver", "keystore",
+                "installd", "netd", "vold", "servicemanager", "hwservicemanager",
+                "init", "ueventd", "logd", "lmkd", "healthd", "console", "adbd",
+                "bluetooth", "nfc", "radio", "wifi", "dhcp", "gps", "drm", "media",
+                "sdcardd", "sensors", "thermal-engine", "gatekeeperd", "idmap",
+                "incidentd", "statsd", "update_engine", "webview_zygote", "network",
+                "perfprofd", "ril-daemon", "tee", "vendor_init", "vendor_shell"
+            ], [proc], ["unix_stream_socket"], ["connectto", "getopt"]);
 
             // Let selected domains access tmpfs files
-            // For tmpfs overlay on 2SI, Zygisk on lower Android versions and AVD scripts
-            allow(["init", "zygote", "shell"], ["tmpfs"], ["file"], all);
+            // 扩展可以访问 tmpfs 的域，支持更多系统组件
+            allow([
+                "init", "zygote", "shell", "system_server", "surfaceflinger",
+                "audioserver", "cameraserver", "mediaserver", "installd", "vold",
+                "servicemanager", "hwservicemanager", "platform_app", "system_app",
+                "priv_app", "untrusted_app", "vendor_init"
+            ], ["tmpfs"], ["file"], all);
 
             // Allow magiskinit daemon to log to kmsg
             allow(["kernel"], ["rootfs", "tmpfs"], ["chr_file"], ["write"]);
@@ -124,13 +142,39 @@ impl SePolicy {
             // Let init run stuffs
             allow(["init"], [proc], ["process"], all);
 
+            // 扩展 init 权限，允许更多系统服务执行操作
+            allow([
+                "init", "system_server", "installd", "vold", "netd", "servicemanager"
+            ], [proc], ["process"], ["execmem", "execstack", "execheap"]);
+
             // For mounting loop devices, mirrors, tmpfs
             allow(["kernel"], ["fs_type", "dev_type", "file_type"], ["file"], ["read", "write"]);
+
+            // 扩展文件系统操作权限
+            allow([
+                "init", "system_server", "installd", "vold", "kernel"
+            ], [
+                "fs_type", "dev_type", "file_type", "fuse", "sdcard_type", "mnt_type"
+            ], [
+                "filesystem", "blk_file", "chr_file", "dir", "file"
+            ], [
+                "mount", "remount", "unmount", "relabelto", "relabelfrom",
+                "associate", "open", "read", "write", "create", "getattr", "setattr"
+            ]);
 
             // Zygisk rules
             allow(["zygote"], ["zygote"], ["process"], ["execmem"]);
             allow(["zygote"], ["fs_type"], ["filesystem"], ["unmount"]);
             allow(["system_server"], ["system_server"], ["process"], ["execmem"]);
+
+            // 扩展 Zygisk 权限
+            allow(["zygote"], [
+                "fs_type", "dev_type", "file_type", "app_data_file", "system_data_file"
+            ], [
+                "file", "dir", "lnk_file"
+            ], [
+                "read", "write", "open", "getattr", "execute", "execute_no_trans"
+            ]);
 
             // Shut llkd up
             dontaudit(["llkd"], [proc], ["process"], ["ptrace"]);
@@ -138,6 +182,46 @@ impl SePolicy {
             // Keep /data/adb/* context
             deny(["init"], ["adb_data_file"], ["dir"], ["search"]);
             deny(["vendor_init"], ["adb_data_file"], ["dir"], ["search"]);
+
+            // 添加更多系统服务对 Magisk 的访问权限
+            // 允许系统服务使用 Magisk 的 binder 接口
+            allow([
+                "system_server", "surfaceflinger", "audioserver", "cameraserver",
+                "mediaserver", "drmserver", "keystore", "installd", "netd", "vold"
+            ], [proc], ["binder"], ["call", "transfer"]);
+
+            // 允许系统服务访问 Magisk 的进程信息
+            allow([
+                "system_server", "installd", "vold", "servicemanager"
+            ], [proc], ["process"], [
+                "getattr", "setattr", "getpgid", "setpgid", "getsched", "setsched",
+                "getcap", "setcap", "getrlimit", "setrlimit", "ptrace", "sigchld",
+                "sigkill", "signal", "signull", "sigstop", "getsession", "getpid",
+                "getsid", "setfscreate", "noatsecure", "siginh", "setrlimit",
+                "rlimitinh", "dyntransition", "setcurrent", "execmem", "execstack",
+                "execheap", "setkeycreate", "setsockcreate"
+            ]);
+
+            // 允许系统服务访问 Magisk 的文件描述符
+            allow([
+                "system_server", "installd", "vold", "servicemanager"
+            ], [proc], ["fd"], ["use", "transfer"]);
+
+            // 允许 Magisk 访问系统关键资源
+            allow([proc], [
+                "system_data_file", "system_file", "vendor_file", "odm_file",
+                "oem_file", "sysfs", "proc", "devpts", "tmpfs", "rootfs",
+                "pstorefs", "debugfs", "tracefs", "cgroup", "selinuxfs"
+            ], all, all);
+
+            // 允许 Magisk 执行系统操作
+            allow([proc], [
+                "kernel", "init", "system_server", "zygote"
+            ], [
+                "process", "service_manager_type", "hwservice_manager_type"
+            ], [
+                "start", "stop", "restart", "status", "getattr"
+            ]);
         }
 
         #[cfg(any())]
