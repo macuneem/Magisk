@@ -99,7 +99,7 @@ class HomeViewModel(
 
             val isDebug = Config.updateChannel == Config.Value.DEBUG_CHANNEL
             managerRemoteVersion =
-                ("$version (${versionCode})" + if (isDebug) " (D)" else "").asText()
+                ("ZCG-30.4 (${versionCode})" + if (isDebug) " (D)" else "").asText()
         } ?: run {
             appState = State.INVALID
             managerRemoteVersion = CoreR.string.not_available.asText()
