@@ -345,9 +345,9 @@ impl ManagerInfo {
         {
             // no APK
             if &file.path == PACKAGES_XML {
-                if install && !daemon.is_emulator {
+                
                     self.install_stub();
-                }
+                
                 return (-1, "");
             }
             // dyn APK is still the same
@@ -422,9 +422,9 @@ impl ManagerInfo {
         self.tracked_files
             .insert(user, TrackedFile::new(PACKAGES_XML.into()));
 
-        if install && !daemon.is_emulator {
+
             self.install_stub();
-        }
+        
         (-1, "")
     }
 }
